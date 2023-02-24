@@ -37,6 +37,7 @@
 void init_mcu(void)
 {
     OSCCONbits.IRCF = 0b1101; // FOSC 4 Mhz
+    OPTION_REGbits.nWPUEN = 0; // Enable pull-ups
     //
     TRISCbits.TRISC5 = 0; LED = 0; // LED output
     ANSELAbits.ANSA2 = 0; TRISAbits.TRISA2 = 1; WPUAbits.WPUA2 = 1; // SW0 input
@@ -83,7 +84,7 @@ int main()
     __delay_ms(3000);
     // Blink LED to indicate value of gain.
     LED = 0;
-    for (int i=0; i <= gain; ++i) {
+    for (unsigned char i=0; i <= gain; ++i) {
         LED = 1;
         __delay_ms(900);
         LED = 0;
