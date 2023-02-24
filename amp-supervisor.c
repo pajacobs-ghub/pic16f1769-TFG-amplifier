@@ -109,15 +109,18 @@ void init_mcu(void)
     OPA1CONbits.ORM = 0b00; // Disable override function
     OPA1CONbits.UG = 1; // Unity gain
     OPA1PCHSbits.PCH = 0b0010; // DAC1_out
+    OPA1CONbits.EN = 1; // Enable
     //
     OPA2CONbits.ORM = 0b00; // Disable override function
     OPA2CONbits.UG = 1; // Unity gain
     OPA2PCHSbits.PCH = 0b0011; // DAC2_out
+    OPA2CONbits.EN = 1; // Enable
 }
 
 unsigned int read_adc(unsigned char chan)
 {
     ADCON0bits.CHS = chan & 0b11111;
+    __delay_ms(1);
     ADCON0bits.GO = 1;
     NOP();
     while (ADCON0bits.GO_nDONE) { /* wait for conversion */ }
@@ -161,10 +164,10 @@ int main()
     //
     // At this point, we assume that TFG circuits have settled.
     // Set the reference voltages for the amplifiers.
-    // Note that PGA_A on board is fed OPA1_out while
-    // PGA_B is fed OPA2_out.
-    DAC1REF = read_adc(ACHANA);
-    DAC2REF = read_adc(ACHANB);
+    // Note that PGA_A on board is fed OPA2_out while
+    // PGA_B is fed OPA1_out.
+    DAC2REF = read_adc(ACHANA); DACLDbits.DAC2LD = 1;
+    DAC1REF = read_adc(ACHANB); DACLDbits.DAC1LD = 1;
     //
     // Send gain to both PGAs.
     CSAn = 0; spi_send_gain(gain); CSAn = 1;
