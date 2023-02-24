@@ -33,12 +33,15 @@
 #define SW2 PORTAbits.RA4
 #define CSAn LATBbits.LATB5
 #define CSBn LATCbits.LATC0
+#define ACHANA 8
+#define ACHANB 9
 
 void init_mcu(void)
 {
     OSCCONbits.IRCF = 0b1101; // FOSC 4 Mhz
     OPTION_REGbits.nWPUEN = 0; // Enable pull-ups
     //
+    // MCU pins
     TRISCbits.TRISC5 = 0; LED = 0; // LED output
     ANSELAbits.ANSA2 = 0; TRISAbits.TRISA2 = 1; WPUAbits.WPUA2 = 1; // SW0 input
     TRISAbits.TRISA5 = 1; WPUAbits.WPUA5 = 1; // SW1 input
@@ -49,15 +52,16 @@ void init_mcu(void)
     TRISAbits.TRISA0 = 1; WPUAbits.WPUA0 = 1; // PGD
     TRISAbits.TRISA1 = 1; WPUAbits.WPUA1 = 1; // PGC
     //
-    ANSELBbits.ANSB6 = 0; TRISBbits.TRISB6 = 0; // SCK
+    ANSELBbits.ANSB6 = 0; TRISBbits.TRISB6 = 0; LATBbits.LATB6 = 1; // SCK
     ANSELBbits.ANSB4 = 0; TRISBbits.TRISB4 = 1; WPUBbits.WPUB4 = 1; // SDI
-    ANSELCbits.ANSC1 = 0; TRISCbits.TRISC1 = 0; // SDO
-    ANSELBbits.ANSB5 = 0; TRISBbits.TRISB5 = 0; // CSAn
-    ANSELCbits.ANSC0 = 0; TRISCbits.TRISC0 = 0; // CSBn
+    ANSELCbits.ANSC1 = 0; TRISCbits.TRISC1 = 0; LATCbits.LATC1 = 1; // SDO
+    ANSELBbits.ANSB5 = 0; TRISBbits.TRISB5 = 0; CSAn = 1; // CSAn
+    ANSELCbits.ANSC0 = 0; TRISCbits.TRISC0 = 0; CSBn = 1; // CSBn
     //
     ANSELCbits.ANSC2 = 1; TRISCbits.TRISC2 = 1; // OPA1out
     ANSELCbits.ANSC3 = 1; TRISCbits.TRISC3 = 1; // OPA2out
     //
+    // Configure SPI
     GIE = 0;
     PPSLOCK = 0x55;
     PPSLOCK = 0xaa;
@@ -69,6 +73,69 @@ void init_mcu(void)
     PPSLOCK = 0x55;
     PPSLOCK = 0xaa;
     PPSLOCKED = 1;
+    //
+    SSP1STATbits.SMP = 0; // Sample in middle of data output time
+    SSP1STATbits.CKE = 1; // Transmit data on active to idle level of clock
+    SSP1CON1bits.CKP = 1; // Clock idles high
+    SSP1CON1bits.SSPM = 0b0001; // Mode is master, clock is FOSC/16
+    SSP1CON1bits.SSPEN = 1; // Enable
+    //
+    // Fixed voltage reference at 2.048V.
+    FVRCONbits.ADFVR = 0b10;
+    FVRCONbits.CDAFVR = 0b10;
+    FVRCONbits.FVREN = 1;
+    while (!FVRCONbits.FVRRDY) { /* wait */ }
+    //
+    // ADC
+    ADCON0bits.CHS = ACHANA;
+    ADCON1bits.ADCS = 0b111; // FRC
+    ADCON1bits.ADFM = 1; // Right justified
+    ADCON1bits.ADNREF = 0; // Vss
+    ADCON1bits.ADPREF = 0b11; // FVR
+    ADCON0bits.ADON = 1;
+    //
+    // DACs to provide the reference voltages for the PGAs.
+    DAC1CON0bits.DAC1FM = 0; // right justified
+    DAC1CON0bits.PSS = 0b10; // FVR_buffer2
+    DAC1CON0bits.NSS = 0; // Vss
+    DAC1CON0bits.DACOE = 0; // Don't output to the external pin
+    //
+    DAC2CON0bits.DACFM = 0; // right justified
+    DAC2CON0bits.PSS = 0b10; // FVR_buffer2
+    DAC2CON0bits.NSS = 0; // Vss
+    DAC2CON0bits.DACOE = 0; // Don't output to the external pin
+    //
+    // MCU on-chip OpAmps to buffer the DACs
+    OPA1CONbits.ORM = 0b00; // Disable override function
+    OPA1CONbits.UG = 1; // Unity gain
+    OPA1PCHSbits.PCH = 0b0010; // DAC1_out
+    //
+    OPA2CONbits.ORM = 0b00; // Disable override function
+    OPA2CONbits.UG = 1; // Unity gain
+    OPA2PCHSbits.PCH = 0b0011; // DAC2_out
+}
+
+unsigned int read_adc(unsigned char chan)
+{
+    ADCON0bits.CHS = chan & 0b11111;
+    ADCON0bits.GO = 1;
+    NOP();
+    while (ADCON0bits.GO_nDONE) { /* wait for conversion */ }
+    return ADRES;
+}
+
+void spi_send_gain(unsigned char g)
+{
+    unsigned char dummy;
+    if (SSP1CON1bits.WCOL) SSP1CON1bits.WCOL = 0;
+    // Send instruction byte followed by gain byte.
+    PIR1bits.SSP1IF = 0;
+    SSP1BUF = 0b01000000; // Instruction: write to gain register
+    while (!PIR1bits.SSP1IF) { /* wait for transmission to complete */ }
+    dummy = SSP1BUF; // Discard incoming data.
+    SSP1BUF = g; // Write the actual gain
+    while (!PIR1bits.SSP1IF) { /* wait for transmission to complete */ }
+    dummy = SSP1BUF; // Discard incoming data.
 }
 
 int main()
@@ -91,7 +158,20 @@ int main()
         __delay_ms(300);
     }
     __delay_ms(2000);
+    //
+    // At this point, we assume that TFG circuits have settled.
+    // Set the reference voltages for the amplifiers.
+    // Note that PGA_A on board is fed OPA1_out while
+    // PGA_B is fed OPA2_out.
+    DAC1REF = read_adc(ACHANA);
+    DAC2REF = read_adc(ACHANB);
+    //
+    // Send gain to both PGAs.
+    CSAn = 0; spi_send_gain(gain); CSAn = 1;
+    CSBn = 0; spi_send_gain(gain); CSBn = 1;
+    //
     // After the amplifiers are set up, turn on the LED and leave it on.
+    __delay_ms(1);
     LED = 1;
     while (1) { /* forever */ }
     return 0; // We should never arrive here.
