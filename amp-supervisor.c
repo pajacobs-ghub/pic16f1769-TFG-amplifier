@@ -99,11 +99,13 @@ void init_mcu(void)
     DAC1CON0bits.PSS = 0b10; // FVR_buffer2
     DAC1CON0bits.NSS = 0; // Vss
     DAC1CON0bits.DACOE = 0; // Don't output to the external pin
+    DAC1CON0bits.EN = 1;
     //
     DAC2CON0bits.DACFM = 0; // right justified
     DAC2CON0bits.PSS = 0b10; // FVR_buffer2
     DAC2CON0bits.NSS = 0; // Vss
     DAC2CON0bits.DACOE = 0; // Don't output to the external pin
+    DAC2CON0bits.EN = 1;
     //
     // MCU on-chip OpAmps to buffer the DACs
     OPA1CONbits.ORM = 0b00; // Disable override function
@@ -164,8 +166,8 @@ int main()
     //
     // At this point, we assume that TFG circuits have settled.
     // Set the reference voltages for the amplifiers.
-    // Note that PGA_A on board is fed OPA2_out while
-    // PGA_B is fed OPA1_out.
+    // Note that PGA_A reference is provided by OPA2_out while
+    // PGA_B reference is provided by OPA1_out.
     DAC2REF = read_adc(ACHANA); DACLDbits.DAC2LD = 1;
     DAC1REF = read_adc(ACHANB); DACLDbits.DAC1LD = 1;
     //
