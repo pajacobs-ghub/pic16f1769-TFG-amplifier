@@ -87,11 +87,16 @@ void init_mcu(void)
     while (!FVRCONbits.FVRRDY) { /* wait */ }
     //
     // ADC
+    // Channel A AN8 RC6
+    // Channel B AN9 RC7
+    TRISCbits.TRISC6 = 1; ANSELCbits.ANSC6 = 1; WPUCbits.WPUC6 = 0;
+    TRISCbits.TRISC7 = 1; ANSELCbits.ANSC7 = 1; WPUCbits.WPUC7 = 0;
     ADCON0bits.CHS = ACHANA;
-    ADCON1bits.ADCS = 0b111; // FRC
+    ADCON1bits.ADCS = 0b011; // FRC (also 0b111)
     ADCON1bits.ADFM = 1; // Right justified
     ADCON1bits.ADNREF = 0; // Vss
     ADCON1bits.ADPREF = 0b11; // FVR
+    PIR1bits.ADIF = 0;
     ADCON0bits.ADON = 1;
     //
     // DACs to provide the reference voltages for the PGAs.
@@ -121,11 +126,13 @@ void init_mcu(void)
 
 unsigned int read_adc(unsigned char chan)
 {
-    ADCON0bits.CHS = chan & 0b11111;
+    ADCON0bits.CHS = chan & 0b00011111;
     __delay_ms(1);
+    PIR1bits.ADIF = 0;
     ADCON0bits.GO = 1;
     NOP();
     while (ADCON0bits.GO_nDONE) { /* wait for conversion */ }
+    PIR1bits.ADIF = 0;
     return ADRES;
 }
 
@@ -138,7 +145,8 @@ void spi_send_gain(unsigned char g)
     SSP1BUF = 0b01000000; // Instruction: write to gain register
     while (!PIR1bits.SSP1IF) { /* wait for transmission to complete */ }
     dummy = SSP1BUF; // Discard incoming data.
-    SSP1BUF = g; // Write the actual gain
+    PIR1bits.SSP1IF = 0;
+    SSP1BUF = g; // Data: the gain byte
     while (!PIR1bits.SSP1IF) { /* wait for transmission to complete */ }
     dummy = SSP1BUF; // Discard incoming data.
 }
@@ -170,6 +178,7 @@ int main()
     // PGA_B reference is provided by OPA1_out.
     DAC2REF = read_adc(ACHANA); DACLDbits.DAC2LD = 1;
     DAC1REF = read_adc(ACHANB); DACLDbits.DAC1LD = 1;
+    __delay_ms(1);
     //
     // Send gain to both PGAs.
     CSAn = 0; spi_send_gain(gain); CSAn = 1;
