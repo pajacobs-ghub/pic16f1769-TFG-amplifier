@@ -52,9 +52,9 @@ void init_mcu(void)
     TRISAbits.TRISA0 = 1; WPUAbits.WPUA0 = 1; // PGD
     TRISAbits.TRISA1 = 1; WPUAbits.WPUA1 = 1; // PGC
     //
-    ANSELBbits.ANSB6 = 0; TRISBbits.TRISB6 = 0; LATBbits.LATB6 = 1; // SCK
+    ANSELBbits.ANSB6 = 0; TRISBbits.TRISB6 = 0; LATBbits.LATB6 = 0; // SCK
     ANSELBbits.ANSB4 = 0; TRISBbits.TRISB4 = 1; WPUBbits.WPUB4 = 1; // SDI
-    ANSELCbits.ANSC1 = 0; TRISCbits.TRISC1 = 0; LATCbits.LATC1 = 1; // SDO
+    ANSELCbits.ANSC1 = 0; TRISCbits.TRISC1 = 0; LATCbits.LATC1 = 0; // SDO
     ANSELBbits.ANSB5 = 0; TRISBbits.TRISB5 = 0; CSAn = 1; // CSAn
     ANSELCbits.ANSC0 = 0; TRISCbits.TRISC0 = 0; CSBn = 1; // CSBn
     //
@@ -74,9 +74,10 @@ void init_mcu(void)
     PPSLOCK = 0xaa;
     PPSLOCKED = 1;
     //
+    // From the MCP6S21 data sheet, choose to use SPI mode 0,0
     SSP1STATbits.SMP = 0; // Sample in middle of data output time
     SSP1STATbits.CKE = 1; // Transmit data on active to idle level of clock
-    SSP1CON1bits.CKP = 1; // Clock idles high
+    SSP1CON1bits.CKP = 0; // Clock idles low
     SSP1CON1bits.SSPM = 0b0001; // Mode is master, clock is FOSC/16
     SSP1CON1bits.SSPEN = 1; // Enable
     //
